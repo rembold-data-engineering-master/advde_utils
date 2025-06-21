@@ -5,6 +5,8 @@ Utility library to offer a smoother experience when working with Airflow.
 
 from airflow.hooks.base import BaseHook
 from urllib.parse import quote_plus
+import pendulum
+import requests
 
 def get_postgres_uri_from_conn(conn_id: str) -> str:
     """
@@ -71,3 +73,24 @@ def gen_duckdb_s3_secret_from_conn(conn_id: str) -> str:
         );
         """
     return out
+
+
+def discord_success_alert(context):
+    """Callback function to send a success notification to a proxy server, which
+    will relay the signal to the correct group webhook."""
+    payload = {
+        "task_name": context['task_instance'].task_id,
+        "dag_name": context['task_instance'].dag_id,
+        "date": pendulum.instance(context['logical_date']).to_iso8601_string(),
+    }
+    resp = requests.post("http://sources.advde:8000/airflow/success", json=payload)
+
+def discord_failure_alert(context):
+    """Callback function to send a failure notification to a proxy server, which
+    will relay the signal to the correct group webhook."""
+    payload = {
+        "task_name": context['task_instance'].task_id,
+        "dag_name": context['task_instance'].dag_id,
+        "date": pendulum.instance(context['logical_date']).to_iso8601_string(),
+    }
+    resp = requests.post("http://sources.advde:8000/airflow/failure", json=payload)
