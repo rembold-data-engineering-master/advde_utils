@@ -7,6 +7,8 @@ from airflow.hooks.base import BaseHook
 from urllib.parse import quote_plus
 import pendulum
 import requests
+import boto3
+from botocore.client import Config
 
 def get_postgres_uri_from_conn(conn_id: str) -> str:
     """
@@ -94,3 +96,38 @@ def discord_failure_alert(context):
         "date": pendulum.instance(context['logical_date']).to_iso8601_string(),
     }
     resp = requests.post("http://sources.advde:8000/airflow/failure", json=payload)
+
+
+def get_minio_boto_client(conn_id):
+    """Creates and returns a boto3 client connected to the given conn_id
+
+    Args:
+        conn_id (str): The Airflow connection ID for the MinIO server
+    
+    Returns:
+        boto3.client: A boto3 client connect to the server and ready for use
+
+
+    Examples:
+    >>> client = get_minio_boto_client("minio_s3")
+    >>> client.put_object(...)
+    """
+    conn = BaseHook.get_connection(conn_id)
+
+    access_key = conn.login
+    secret_key = conn.password
+
+    extras = conn.extra_dejson
+    endpoint = extras.get("endpoint", conn.host)
+    if not endpoint.startswith('http://'):
+        endpoint = 'http://' + endpoint
+    region = extras.get("region_name", "us-east-1")
+
+    return boto3.client(
+        "s3",
+        aws_access_key_id = access_key,
+        aws_secret_access_key = secret_key,
+        region_name = region,
+        endpoint_url = endpoint,
+        config=Config(s3={'addressing_style': 'path'})
+    )
